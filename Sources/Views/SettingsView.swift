@@ -1,7 +1,9 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @AppStorage("gateway_url") private var gatewayURL = "ws://host:18789"
+    @AppStorage("gateway_url") private var gatewayURL = "ws://127.0.0.1:18790"
+    @AppStorage("gateway_token") private var gatewayToken = "82f8b644977c488228b67f843e5ad0530535d7520f6f2d5a"
+    @AppStorage("default_session_key") private var defaultSessionKey = "agent:main:main"
     @AppStorage("local_notifications_enabled") private var notificationsEnabled = true
 
     @EnvironmentObject private var webSocketManager: WebSocketManager
@@ -15,6 +17,14 @@ struct SettingsView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
+
+                    SecureField("Gateway Token", text: $gatewayToken)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+
+                    TextField("Default Session Key", text: $defaultSessionKey)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
                 }
 
                 Section("Notifications") {

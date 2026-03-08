@@ -8,6 +8,7 @@ final class Message {
     var senderName: String
     var isFromUser: Bool
     var sentAt: Date
+    var remoteMessageKey: String?
 
     @Relationship var channel: Channel?
 
@@ -17,6 +18,7 @@ final class Message {
         senderName: String,
         isFromUser: Bool,
         sentAt: Date = .now,
+        remoteMessageKey: String? = nil,
         channel: Channel? = nil
     ) {
         self.id = id
@@ -24,6 +26,7 @@ final class Message {
         self.senderName = senderName
         self.isFromUser = isFromUser
         self.sentAt = sentAt
+        self.remoteMessageKey = remoteMessageKey
         self.channel = channel
     }
 }

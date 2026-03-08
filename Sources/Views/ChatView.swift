@@ -73,6 +73,15 @@ struct ChatView: View {
         }
         .navigationTitle(channel.name)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            webSocketManager.setActiveChannel(channel.id)
+            webSocketManager.loadHistory(for: channel.id, limit: 50)
+        }
+        .onChange(of: webSocketManager.connectionState) { _, state in
+            guard state == .connected else { return }
+            webSocketManager.setActiveChannel(channel.id)
+            webSocketManager.loadHistory(for: channel.id, limit: 50, force: true)
+        }
     }
 
     private func sendMessage() {
