@@ -33,6 +33,8 @@ struct ClawApp: App {
 
 private struct TabRootView: View {
     @AppStorage("gateway_url") private var gatewayURL = "ws://host:18789"
+    @AppStorage("gateway_token") private var gatewayToken = "82f8b644977c488228b67f843e5ad0530535d7520f6f2d5a"
+    @AppStorage("default_session_key") private var defaultSessionKey = "agent:main:main"
     @AppStorage("local_notifications_enabled") private var notificationsEnabled = true
 
     @EnvironmentObject private var webSocketManager: WebSocketManager
@@ -58,7 +60,11 @@ private struct TabRootView: View {
         .task {
             notificationManager.isEnabled = notificationsEnabled
             await notificationManager.requestAuthorizationIfNeeded()
-            webSocketManager.connect(to: gatewayURL)
+            webSocketManager.connect(
+                to: gatewayURL,
+                token: gatewayToken,
+                defaultSessionKey: defaultSessionKey
+            )
             webSocketManager.onIncomingMessage = { incoming in
                 Task { @MainActor in
                     persistIncoming(incoming)
@@ -67,7 +73,25 @@ private struct TabRootView: View {
         }
         .onAppear(perform: seedDefaultChannels)
         .onChange(of: gatewayURL) { _, newValue in
-            webSocketManager.connect(to: newValue)
+            webSocketManager.connect(
+                to: newValue,
+                token: gatewayToken,
+                defaultSessionKey: defaultSessionKey
+            )
+        }
+        .onChange(of: gatewayToken) { _, newValue in
+            webSocketManager.connect(
+                to: gatewayURL,
+                token: newValue,
+                defaultSessionKey: defaultSessionKey
+            )
+        }
+        .onChange(of: defaultSessionKey) { _, newValue in
+            webSocketManager.connect(
+                to: gatewayURL,
+                token: gatewayToken,
+                defaultSessionKey: newValue
+            )
         }
         .onChange(of: notificationsEnabled) { _, newValue in
             notificationManager.isEnabled = newValue

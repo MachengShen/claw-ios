@@ -293,34 +293,40 @@ final class WebSocketManager: NSObject, ObservableObject {
 
     private func startReceiveLoop() {
         receiveTask?.cancel()
-        receiveTask = Task { [weak self] in
-            await self?.receiveLoop()
+        guard let socketTask = webSocketTask else {
+            return
+        }
+        receiveTask = Task(priority: .userInitiated) { [weak self, socketTask] in
+            await self?.receiveLoop(task: socketTask)
         }
     }
 
-    private func receiveLoop() async {
+    private nonisolated func receiveLoop(task: URLSessionWebSocketTask) async {
         while !Task.isCancelled {
-            guard let task = webSocketTask else {
-                return
-            }
-
             do {
                 let event = try await task.receive()
+                let text: String?
                 switch event {
                 case .data(let data):
-                    if let text = String(data: data, encoding: .utf8) {
-                        handleIncomingText(text)
-                    }
-                case .string(let text):
-                    handleIncomingText(text)
+                    text = String(data: data, encoding: .utf8)
+                case .string(let incomingText):
+                    text = incomingText
                 @unknown default:
-                    break
+                    text = nil
+                }
+
+                if let text {
+                    await MainActor.run { [weak self] in
+                        self?.handleIncomingText(text)
+                    }
                 }
             } catch {
                 if Task.isCancelled {
                     return
                 }
-                handleSocketFailure(error)
+                await MainActor.run { [weak self] in
+                    self?.handleSocketFailure(error)
+                }
                 return
             }
         }
@@ -352,9 +358,10 @@ final class WebSocketManager: NSObject, ObservableObject {
         switch eventName {
         case "connect.challenge":
             guard !hasSentConnectRequest else { return }
+            print("Challenge received")
             hasSentConnectRequest = true
             connectTask?.cancel()
-            connectTask = Task { [weak self] in
+            connectTask = Task(priority: .high) { [weak self] in
                 await self?.performHandshake(challengePayload: payload)
             }
         case "chat":
@@ -386,6 +393,7 @@ final class WebSocketManager: NSObject, ObservableObject {
         do {
             _ = challengePayload
 
+            print("Sending connect...")
             let payload = try await sendRequest(method: "connect", params: connectParams())
             guard let hello = payload as? JSONObject else {
                 throw GatewayError.invalidHandshake
@@ -394,6 +402,7 @@ final class WebSocketManager: NSObject, ObservableObject {
             guard stringValue(hello["type"]) == "hello-ok" else {
                 throw GatewayError.invalidHandshake
             }
+            print("Hello-ok received")
 
             if let policy = hello["policy"] as? JSONObject,
                let interval = intValue(policy["tickIntervalMs"])
@@ -406,6 +415,7 @@ final class WebSocketManager: NSObject, ObservableObject {
             reconnectAttempt = 0
             connectionState = .connected
             errorMessage = nil
+            print("Connected!")
 
             startTickLoop()
 
@@ -490,12 +500,12 @@ final class WebSocketManager: NSObject, ObservableObject {
             throw GatewayError.notConnected
         }
 
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             task.sendPing { error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else {
-                    continuation.resume(returning: ())
+                    continuation.resume()
                 }
             }
         }
@@ -550,7 +560,7 @@ final class WebSocketManager: NSObject, ObservableObject {
     }
 
     private func sendRequest(method: String, params: JSONObject? = nil) async throws -> Any? {
-        guard webSocketTask != nil, connectionState == .connected || method == "connect" else {
+        guard let webSocketTask, connectionState == .connected || method == "connect" else {
             throw GatewayError.notConnected
         }
 
@@ -564,18 +574,15 @@ final class WebSocketManager: NSObject, ObservableObject {
             frame["params"] = params
         }
 
+        let text = try frameText(frame)
+
         let response: GatewayResponse = try await withCheckedThrowingContinuation { continuation in
             pendingRequests[requestID] = continuation
 
-            Task { @MainActor [weak self] in
-                guard let self else {
-                    continuation.resume(throwing: GatewayError.disconnected)
-                    return
-                }
-
-                do {
-                    try await self.sendFrame(frame)
-                } catch {
+            webSocketTask.send(.string(text)) { [weak self] error in
+                guard let error else { return }
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
                     if let pending = self.pendingRequests.removeValue(forKey: requestID) {
                         pending.resume(throwing: error)
                     }
@@ -595,12 +602,17 @@ final class WebSocketManager: NSObject, ObservableObject {
             throw GatewayError.notConnected
         }
 
+        let text = try frameText(frame)
+
+        try await task.send(.string(text))
+    }
+
+    private func frameText(_ frame: JSONObject) throws -> String {
         let data = try JSONSerialization.data(withJSONObject: frame, options: [])
         guard let text = String(data: data, encoding: .utf8) else {
             throw GatewayError.invalidFrame
         }
-
-        try await task.send(.string(text))
+        return text
     }
 
     private func failPendingRequests(with error: Error) {
