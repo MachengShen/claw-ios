@@ -10,7 +10,7 @@ struct ClawApp: App {
     init() {
         do {
             modelContainer = try ModelContainer(
-                for: [Channel.self, Message.self],
+                for: Channel.self, Message.self,
                 configurations: ModelConfiguration(
                     "ClawData",
                     isStoredInMemoryOnly: false
@@ -66,18 +66,19 @@ private struct TabRootView: View {
             }
         }
         .onAppear(perform: seedDefaultChannels)
-        .onChange(of: gatewayURL) { newValue in
+        .onChange(of: gatewayURL) { _, newValue in
             webSocketManager.connect(to: newValue)
         }
-        .onChange(of: notificationsEnabled) { newValue in
+        .onChange(of: notificationsEnabled) { _, newValue in
             notificationManager.isEnabled = newValue
         }
     }
 
     @MainActor
     private func persistIncoming(_ incoming: SocketIncomingMessage) {
+        let incomingChannelId = incoming.channelId
         let descriptor = FetchDescriptor<Channel>(
-            predicate: #Predicate { $0.id == incoming.channelId }
+            predicate: #Predicate<Channel> { channel in channel.id == incomingChannelId }
         )
         let channels = (try? modelContext.fetch(descriptor)) ?? []
         guard let channel = channels.first else {

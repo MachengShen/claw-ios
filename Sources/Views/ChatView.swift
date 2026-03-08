@@ -10,9 +10,10 @@ struct ChatView: View {
 
     init(channel: Channel) {
         self.channel = channel
+        let channelId = channel.id
         _messages = Query(
             filter: #Predicate<Message> { message in
-                message.channel?.id == channel.id
+                message.channel?.id == channelId
             },
             sort: \Message.sentAt
         )
@@ -61,7 +62,7 @@ struct ChatView: View {
                 } label: {
                     Image(systemName: "paperplane.fill")
                         .font(.title3)
-                        .foregroundStyle(isSubmitting ? .secondary : .white)
+                        .foregroundStyle(isSubmitting ? Color.secondary : Color.white)
                         .padding(10)
                         .background(isSubmitting ? Color.gray : Color.accentColor)
                         .clipShape(Circle())

@@ -116,7 +116,7 @@ final class WebSocketManager: NSObject, ObservableObject {
 
     private func listen() async {
         await MainActor.run { errorMessage = nil }
-        receiveTask = Task { [weak self] in
+        receiveTask = Task<Void, Never> { [weak self] in
             guard let self = self else { return }
 
             while true {
@@ -127,9 +127,9 @@ final class WebSocketManager: NSObject, ObservableObject {
                 do {
                     let event = try await activeTask.receive()
                     switch event {
-                    case .data(let data)?:
+                    case .data(let data):
                         await self.handleIncoming(data: data)
-                    case .string(let text)?:
+                    case .string(let text):
                         if let data = text.data(using: .utf8) {
                             await self.handleIncoming(data: data)
                         }
