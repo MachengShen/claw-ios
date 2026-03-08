@@ -34,7 +34,7 @@ struct ChatView: View {
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .background(Color(uiColor: .systemBackground))
+                .background(Color(.systemBackground))
                 .onAppear {
                     if let last = messages.last {
                         proxy.scrollTo(last.id, anchor: .bottom)
@@ -107,7 +107,7 @@ private struct MessageBubble: View {
                     .foregroundStyle(isOwn ? .white : .primary)
             }
             .padding(12)
-            .background(isOwn ? Color.blue : Color(uiColor: .secondarySystemFill))
+            .background(isOwn ? Color.blue : Color(.secondarySystemFill))
             .foregroundStyle(isOwn ? .white : .primary)
             .clipShape(RoundedRectangle(cornerRadius: 14))
 
